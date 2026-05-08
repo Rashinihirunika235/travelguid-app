@@ -23,7 +23,7 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // Firebase Auth State එක වෙනස් වෙනවද බලනවා
+    // Firebase Auth State 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       if (initializing) setInitializing(false);
@@ -35,17 +35,17 @@ export default function RootLayout() {
   useEffect(() => {
     if (initializing) return;
 
-    // User ලොග් වෙලා ඉන්නවා නම් කෙළින්ම Tabs වලට යවනවා
-    // නැත්නම් Splash/Index එකේ නවතිනවා (එතනින් Sign In එකට යන්න පුළුවන්)
+    // User log from tab
+    
     if (user) {
       router.replace("/(tabs)");
     } else {
-      // User ලොග් වෙලා නැත්නම් index එකටම යවනවා (හෝ signin එකට)
-      router.replace("/"); 
+      // dont log user go to index
+      router.replace("/");
     }
   }, [user, initializing]);
 
-  // Load වෙන වෙලාවට පෙන්නන ලස්සන Loading Screen එකක්
+  //lording screen
   if (initializing) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background || "#F8F9FA" }}>
