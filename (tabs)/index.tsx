@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View, Text, TextInput, TouchableOpacity, Image, FlatList, Dimensions } from "react-native";
+import { ScrollView, StyleSheet, View, Text, TextInput, TouchableOpacity, Image, Dimensions } from "react-native";
 import { useState, useMemo } from "react";
 import { Link } from "expo-router";
 import { Search, MapPin, Heart } from "lucide-react-native";
@@ -7,9 +7,50 @@ import { useFavorites } from "../../contexts/FavoritesContext";
 import { colors } from "../../constants/colors";
 
 const { width } = Dimensions.get("window");
-const COLUMN_WIDTH = (width - 48) / 2; // Screen එකේ පළල අනුව cards බෙදා ගැනීම
+const COLUMN_WIDTH = (width - 48) / 2;
 
 const FEATURED_DISTRICTS = ["colombo", "kandy", "galle", "sigiriya", "nuwara-eliya"];
+
+// FIX 1:The DistrictCard component is defined outside the HomeScreen
+// previous: render always re-center→ image flicker + performance drop
+// now: defined once,no re-rendering
+const DistrictCard = ({ 
+  item, 
+  isFullWidth = false,
+  onToggleFavorite,
+  isFavorite,
+}: { 
+  item: any; 
+  isFullWidth?: boolean;
+  onToggleFavorite: (id: string) => void;
+  isFavorite: boolean;
+}) => (
+  <View style={[styles.card, isFullWidth ? { width: 280 } : { width: COLUMN_WIDTH }]}>
+    <Link href={`/district/${item.id}`} asChild>
+      <TouchableOpacity activeOpacity={0.9}>
+        <Image source={{ uri: item.imageUrl }} style={styles.image} />
+        <View style={styles.overlay} />
+        <View style={styles.cardContent}>
+          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.locationRow}>
+            <MapPin size={12} color="#fff" />
+            <Text style={styles.provinceText} numberOfLines={1}>{item.province}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Link>
+    <TouchableOpacity
+      style={styles.heartButton}
+      onPress={() => onToggleFavorite(item.id)}
+    >
+      <Heart
+        size={18}
+        color={isFavorite ? "#ff4757" : "#fff"}
+        fill={isFavorite ? "#ff4757" : "transparent"}
+      />
+    </TouchableOpacity>
+  </View>
+);
 
 export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,35 +73,6 @@ export default function HomeScreen() {
     }
     return result;
   }, [searchQuery, selectedProvince]);
-
-  // ප්ලෑන් එකට ගැලපෙන විදිහට Card එක නිර්මාණය කිරීම
-  const DistrictCard = ({ item, isFullWidth = false }: { item: any, isFullWidth?: boolean }) => (
-    <View style={[styles.card, isFullWidth ? { width: 280 } : { width: COLUMN_WIDTH }]}>
-      <Link href={`/district/${item.id}`} asChild>
-        <TouchableOpacity activeOpacity={0.9}>
-          <Image source={{ uri: item.imageUrl }} style={styles.image} />
-          <View style={styles.overlay} />
-          <View style={styles.cardContent}>
-            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.locationRow}>
-              <MapPin size={12} color="#fff" />
-              <Text style={styles.provinceText} numberOfLines={1}>{item.province}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Link>
-      <TouchableOpacity
-        style={styles.heartButton}
-        onPress={() => toggleFavorite(item.id)}
-      >
-        <Heart
-          size={18}
-          color={isFavorite(item.id) ? "#ff4757" : "#fff"}
-          fill={isFavorite(item.id) ? "#ff4757" : "transparent"}
-        />
-      </TouchableOpacity>
-    </View>
-  );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -103,17 +115,27 @@ export default function HomeScreen() {
       </View>
 
       {/* Featured Section */}
+      {/* FIX 2: FlatList inside ScrollView replace  → ScrollView horizontal
+          previous: VirtualizedList warning + memory usage high
+          now:  no nested scroll , smooth performance */}
       {!searchQuery && !selectedProvince && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          <FlatList
-            data={featuredDistricts}
-            renderItem={({ item }) => <DistrictCard item={item} isFullWidth={true} />}
-            keyExtractor={(item) => item.id}
-            horizontal
+          <ScrollView 
+            horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
-          />
+          >
+            {featuredDistricts.map((item) => (
+              <DistrictCard
+                key={item.id}
+                item={item}
+                isFullWidth={true}
+                onToggleFavorite={toggleFavorite}
+                isFavorite={isFavorite(item.id)}
+              />
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -124,7 +146,12 @@ export default function HomeScreen() {
         </Text>
         <View style={styles.grid}>
           {filteredDistricts.map((district) => (
-            <DistrictCard key={district.id} item={district} />
+            <DistrictCard
+              key={district.id}
+              item={district}
+              onToggleFavorite={toggleFavorite}
+              isFavorite={isFavorite(district.id)}
+            />
           ))}
         </View>
       </View>
