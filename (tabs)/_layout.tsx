@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Heart, Map, User, Bell } from 'lucide-react-native'; // 👈 Map icon එක මෙතැන තියෙනවද බලන්න
+import { Home, Heart, Map, User, CloudSun } from 'lucide-react-native'; // 👈 CloudSun එකතු කළා, Calendar අයින් කළා
 import { colors } from '../../constants/colors';
 
 export default function TabLayout() {
@@ -11,7 +11,7 @@ export default function TabLayout() {
         tabBarStyle: {
           borderTopWidth: 0,
           elevation: 10,
-          height: 60,
+          height: 65, 
           paddingBottom: 10,
           backgroundColor: '#ffffff',
         },
@@ -26,12 +26,20 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 🗺️ මෙන්න මේ Map පේජ් එකේ නම (map) සහ icon එක පරීක්ෂා කරන්න */}
       <Tabs.Screen
-        name="map" // 👈 ඔයාගේ file එකේ නම map.tsx නම් මෙතැන "map" විය යුතුයි
+        name="map"
         options={{
           title: 'Map',
           tabBarIcon: ({ color, size }) => <Map size={size} color={color} />,
+        }}
+      />
+
+      {/*  Weather Tab  */}
+      <Tabs.Screen
+        name="weather"
+        options={{
+          title: 'Weather',
+          tabBarIcon: ({ color, size }) => <CloudSun size={size} color={color} />,
         }}
       />
 
