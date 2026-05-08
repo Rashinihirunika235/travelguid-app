@@ -9,14 +9,14 @@ export default function SplashScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // සරල Animation එකක් (අවශ්‍ය නම් පමණක් පාවිච්චි කරන්න)
+    // simple animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1500,
       useNativeDriver: true,
     }).start();
 
-    // ✅ තත්පර 3ක් පෙන්වා ස්වයංක්‍රීයව Sign In පිටුවට මාරු වේ
+    //3 minute auto go to the sign in
     const timer = setTimeout(() => {
       router.replace("/auth/signin");
     }, 3000);
