@@ -1,75 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  Image, KeyboardAvoidingView, Platform, ScrollView, Alert 
+  Image, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
-import { FontAwesome } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors } from '../../constants/colors';
-
-// Context Import එක අමතක කරන්න එපා 👈
 import { useUser } from '../../contexts/UserContext'; 
 
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-
-WebBrowser.maybeCompleteAuthSession();
+// Path updated based on your 'config' folder and 'firebase.js' file
+import { auth } from '../../config/firebase'; 
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  // 👈 User Context එකෙන් setUser function එක ගන්නවා
+  const [loading, setLoading] = useState(false);
   const { setUser } = useUser();
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: "557515126315-n2ne54b3v78m0m8v5q3r8p9p7p8p9p.apps.googleusercontent.com", 
-    webClientId: "557515126315-63bf2dn26qhfltdainvfe1g9i97mh5b9.apps.googleusercontent.com",
-    redirectUri: AuthSession.makeRedirectUri({
-      scheme: 'travel-guide-app', 
-      path: 'auth/signin',
-    }),
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      
-      // ✅ Google හරහා එන විට Profile එක Update කිරීම
-      setUser({
-        name: "Google User", // පසුව Google API එකෙන් නම ගත හැක
-        email: email || "googleuser@gmail.com",
-        profilePic: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-      });
-      
-
-      router.replace('/(tabs)');
-    } else if (response?.type === 'error') {
-      Alert.alert("Login Error", "Google Sign-In failed.");
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert("Input Error", "Please provide both an email address and a password.");
+      return;
     }
-  }, [response]);
 
-  const handleManualSignIn = () => {
-    if (email && password) {
-      // ✅ මෙතැනදී තමයි නම සහ ඊමේල් එක Profile එකට යවන්නේ
-      // දැනට නම විදිහට Email එකේ මුල් කොටස ගනිමු
-      const userName = email.split('@')[0]; 
-      
+    setLoading(true);
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const user = userCredential.user;
+
       setUser({
-        name: userName.charAt(0).toUpperCase() + userName.slice(1),
-        email: email,
-        profilePic: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=1000"
+        name: user.displayName || email.split('@')[0],
+        // Fixed TypeScript null error using ?? operator
+        email: user.email ?? "", 
+        profilePic: user.photoURL || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=1000"
       });
-      
-      
 
+      setLoading(false);
       router.replace('/(tabs)');
-    } else {
-      Alert.alert("Error", "Please enter email and password");
+
+    } catch (error: any) {
+      setLoading(false);
+      let errorMessage = "An unexpected error occurred.";
+      
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        errorMessage = "Incorrect credentials. Please try again.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      }
+
+      Alert.alert("Access Denied", errorMessage);
     }
   };
 
@@ -79,7 +62,6 @@ export default function SignIn() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        
         <LinearGradient colors={[colors.primary || '#1a5f3f', '#2e8b57']} style={styles.header}>
           <View style={styles.logoCircle}>
             <Image 
@@ -114,6 +96,7 @@ export default function SignIn() {
                 autoCapitalize="none" 
                 value={email} 
                 onChangeText={setEmail} 
+                editable={!loading}
               />
             </View>
 
@@ -125,6 +108,7 @@ export default function SignIn() {
                 secureTextEntry={!showPassword} 
                 value={password} 
                 onChangeText={setPassword} 
+                editable={!loading}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 {showPassword ? <EyeOff size={20} color="#666" /> : <Eye size={20} color="#666" />}
@@ -132,36 +116,28 @@ export default function SignIn() {
             </View>
           </View>
 
-          <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+          <TouchableOpacity onPress={() => router.push('/auth/forgot-password')} disabled={loading}>
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.signInButton} onPress={handleManualSignIn}>
-            <Text style={styles.signInButtonText}>Sign In</Text>
-            <ArrowRight size={20} color="#fff" />
+          <TouchableOpacity 
+            style={[styles.signInButton, loading && { opacity: 0.8 }]} 
+            onPress={handleSignIn}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.signInButtonText}>Sign In</Text>
+                <ArrowRight size={20} color="#fff" />
+              </>
+            )}
           </TouchableOpacity>
-
-          <Text style={styles.orText}>Or continue with</Text>
-
-          <View style={styles.socialContainer}>
-             <TouchableOpacity 
-                style={styles.socialCircle} 
-                onPress={() => promptAsync()} 
-                disabled={!request}
-              >
-                <FontAwesome name="google" size={24} color="#DB4437" />
-             </TouchableOpacity>
-             <TouchableOpacity style={styles.socialCircle}>
-                <FontAwesome name="facebook" size={24} color="#4267B2" />
-             </TouchableOpacity>
-             <TouchableOpacity style={styles.socialCircle}>
-                <FontAwesome name="apple" size={24} color="#000" />
-             </TouchableOpacity>
-          </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/signup')}>
+            <TouchableOpacity onPress={() => router.push('/auth/signup')} disabled={loading}>
               <Text style={styles.signUpLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
@@ -192,12 +168,9 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, color: '#333' },
   forgotText: { textAlign: 'right', color: '#1a5f3f', fontWeight: '600', marginBottom: 25 },
-  signInButton: { backgroundColor: '#1a5f3f', borderRadius: 15, height: 55, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  signInButton: { backgroundColor: '#1a5f3f', borderRadius: 15, height: 55, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', elevation: 5 },
   signInButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginRight: 10 },
-  orText: { textAlign: 'center', color: '#999', marginVertical: 20, fontSize: 12 },
-  socialContainer: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
-  socialCircle: { width: 50, height: 50, borderRadius: 15, borderWidth: 1, borderColor: '#eee', justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30, marginBottom: 20 },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 40, marginBottom: 20 },
   footerText: { color: '#666' },
   signUpLink: { color: '#1a5f3f', fontWeight: 'bold' }
 });
