@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Heart, Map, User, CloudSun } from 'lucide-react-native'; // 👈 CloudSun එකතු කළා, Calendar අයින් කළා
+import { Home, Heart, Map, User, CloudSun } from 'lucide-react-native'; 
 import { colors } from '../../constants/colors';
 
 export default function TabLayout() {
