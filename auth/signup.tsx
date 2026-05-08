@@ -10,7 +10,7 @@ import {
   ScrollView,
   Animated,
   Dimensions,
-  Alert, 
+  Alert, // Alert එකතු කළා
 } from "react-native";
 import { Link, router } from "expo-router";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight, Check, MapPin } from "lucide-react-native";
@@ -56,14 +56,14 @@ export default function RegisterScreen() {
     
     setIsLoading(true);
     try {
-      // 1. Firebase Auth from user create
+      // 1. Firebase Auth හරහා user කෙනෙක් හදනවා
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 2.updating the users display name
+      // 2. User ගේ Display Name එක update කරනවා
       await updateProfile(user, { displayName: fullName });
 
-      // 3. Firestore  "users" collection  data save
+      // 3. Firestore එකේ "users" collection එකේ data save කරනවා
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: fullName,
@@ -72,7 +72,7 @@ export default function RegisterScreen() {
         location: "Sri Lanka"
       });
 
-      // success go to Tabs  (Layout redirect )
+      // සාර්ථක නම් Tabs වලට යනවා (Layout redirect එක හරහා)
     } catch (error: any) {
       let errorMessage = "Registration failed. Please try again.";
       if (error.code === 'auth/email-already-in-use') errorMessage = "This email is already registered.";

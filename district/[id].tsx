@@ -1,23 +1,40 @@
-import { ScrollView, StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, Linking, Platform } from "react-native";
+import { ScrollView, StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Heart, MapPin, Clock, Download, Check, ExternalLink, Utensils, History, Car } from "lucide-react-native";
-import { getDistrictById } from "../../data/districts"; // 🚀 Path corrected
+import { ArrowLeft, Heart, MapPin, Download, Check, Utensils, History, Navigation } from "lucide-react-native";
+import { getDistrictById } from "../../data/districts"; 
 import { useFavorites } from "../../contexts/FavoritesContext";
 import { useOffline } from "../../contexts/OfflineContext";
 import { colors } from "../../constants/colors";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import MapView, { Marker } from "react-native-maps";
 
+interface Place {
+  name: string;
+  description: string;
+  imageUrl: string;
+  latitude: number;
+  longitude: number;
+}
+
 const { width } = Dimensions.get("window");
+const DEFAULT_COORDS = { latitude: 7.8731, longitude: 80.7718 };
 
 export default function DistrictDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const mapRef = useRef<MapView>(null);
+  
   const { toggleFavorite, isFavorite } = useFavorites();
   const { downloadDistrict, removeDownload, isDownloaded } = useOffline();
 
   const district = useMemo(() => getDistrictById(id), [id]);
 
+  // FIX 1: useState hook එක district null check කලින් call කරන්න
+  // කලින්: district null නම් hook order break වෙලා crash
+  // දැන්: hooks සෑම විටම same order එකට call වෙනවා
+  const [activeCoords, setActiveCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Early return 
   if (!district) {
     return (
       <View style={styles.errorContainer}>
@@ -29,21 +46,30 @@ export default function DistrictDetailScreen() {
     );
   }
 
-  const handleOpenMaps = () => {
-    const { latitude, longitude } = district.coordinates;
-    const url = Platform.select({
-      ios: `maps:0,0?q=${latitude},${longitude}`,
-      android: `geo:0,0?q=${latitude},${longitude}`,
+  // FIX 2: handleOpenMapTap — camelCase නිවැරදි කළා
+  const handleOpenMapTap = (place: Place) => {
+    router.push({
+      pathname: "/(tabs)/map",
+      params: {
+        destLat: place.latitude,
+        destLng: place.longitude,
+        destName: place.name,
+      },
     });
-    if (url) {
-      void Linking.openURL(url);
-    }
   };
 
-  const handleBookHotel = (hotelName: string) => {
-    const query = encodeURIComponent(`${hotelName} ${district.name} Sri Lanka`);
-    const url = `https://www.google.com/search?q=${query}`;
-    void Linking.openURL(url);
+  const handlePlacePress = (place: Place) => {
+    const targetCoords = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+    };
+    setActiveCoords(targetCoords);
+    
+    mapRef.current?.animateToRegion({
+      ...targetCoords,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    }, 1000);
   };
 
   const handleDownloadToggle = () => {
@@ -54,14 +80,22 @@ export default function DistrictDetailScreen() {
     }
   };
 
+  // FIX 3: coordinates null check — safe fallback
+  const districtCoords = district?.coordinates ?? DEFAULT_COORDS;
+  const markerCoords = activeCoords ?? districtCoords;
+
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        // FIX 4: MapView scroll conflict — scrollEnabled false map area එකෙන් පිටත
+        nestedScrollEnabled={true}
+      >
         {/* Hero Header Section */}
         <View style={styles.headerImageContainer}>
           <Image source={{ uri: district.imageUrl }} style={styles.headerImage} />
           <View style={styles.overlay} />
-          
+
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <ArrowLeft size={24} color="#fff" />
           </TouchableOpacity>
@@ -96,66 +130,71 @@ export default function DistrictDetailScreen() {
         <View style={styles.content}>
           <Text style={styles.description}>{district.description}</Text>
 
-          {/* Interactive Map Section */}
+          {/* Location & Navigation Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MapPin size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Location</Text>
+              <Text style={styles.sectionTitle}>Location & Navigation</Text>
             </View>
             <View style={styles.mapContainer}>
               <MapView
+                ref={mapRef}
                 style={styles.map}
-                scrollEnabled={false}
-                zoomEnabled={false}
+                scrollEnabled={true}
+                zoomEnabled={true}
                 initialRegion={{
-                  latitude: district.coordinates.latitude,
-                  longitude: district.coordinates.longitude,
+                  ...districtCoords,
                   latitudeDelta: 0.1,
                   longitudeDelta: 0.1,
                 }}
               >
-                <Marker coordinate={district.coordinates} />
+                {/* FIX 3: safe coords use */}
+                <Marker coordinate={markerCoords} title={district.name} />
               </MapView>
-              <TouchableOpacity style={styles.mapOverlayButton} onPress={handleOpenMaps}>
-                <Text style={styles.mapButtonText}>View on Google Maps</Text>
-                <ExternalLink size={16} color="#fff" />
+              
+              <TouchableOpacity 
+                style={styles.mapOverlayButton} 
+                onPress={() => handleOpenMapTap({ 
+                  name: district.name, 
+                  latitude: districtCoords.latitude,
+                  longitude: districtCoords.longitude,
+                  description: "", 
+                  imageUrl: "" 
+                })}
+              >
+                <Navigation size={18} color="#fff" />
+                <Text style={styles.mapButtonText}>Get Directions</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Top Places Section */}
+          {/* Top Attractions Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MapPin size={20} color={colors.primary} />
               <Text style={styles.sectionTitle}>Top Attractions</Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-              {district.topPlaces.map((place: any, index: number) => (
-                <View key={index} style={styles.placeCard}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={{ gap: 12 }}
+            >
+              {district.topPlaces.map((place: Place, index: number) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.placeCard}
+                  onPress={() => handleOpenMapTap(place)}
+                  onLongPress={() => handlePlacePress(place)}
+                > 
                   <Image source={{ uri: place.imageUrl }} style={styles.placeImage} />
+                  <View style={styles.placeOverlay} />
                   <View style={styles.placeContent}>
                     <Text style={styles.placeName}>{place.name}</Text>
+                    <Text style={styles.tapToView}>Tap for Route · Hold to Preview</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
-
-          {/* Hotels Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Clock size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Where to Stay</Text>
-            </View>
-            {district.hotels.map((hotel: any, index: number) => (
-              <TouchableOpacity key={index} style={styles.hotelCard} onPress={() => handleBookHotel(hotel.name)}>
-                <View style={styles.hotelHeader}>
-                  <Text style={styles.hotelName}>{hotel.name}</Text>
-                  <Text style={[styles.priceTag, { color: colors.primary }]}>{hotel.priceRange}</Text>
-                </View>
-                <Text style={styles.hotelDescription}>{hotel.description}</Text>
-              </TouchableOpacity>
-            ))}
           </View>
 
           {/* History Section */}
@@ -196,8 +235,8 @@ const styles = StyleSheet.create({
   headerImageContainer: { height: 350, position: "relative" },
   headerImage: { width: "100%", height: "100%" },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)" },
-  backButton: { position: "absolute", top: 50, left: 20, backgroundColor: "rgba(0,0,0,0.5)", padding: 10, borderRadius: 12 },
-  rightButtons: { position: "absolute", top: 50, right: 20, flexDirection: 'row', gap: 10 },
+  backButton: { position: "absolute", top: 50, left: 20, backgroundColor: "rgba(0,0,0,0.5)", padding: 10, borderRadius: 12, zIndex: 10 },
+  rightButtons: { position: "absolute", top: 50, right: 20, flexDirection: 'row', gap: 10, zIndex: 10 },
   iconButton: { backgroundColor: "rgba(0,0,0,0.5)", padding: 10, borderRadius: 12 },
   headerContent: { position: "absolute", bottom: 25, left: 20 },
   name: { fontSize: 34, fontWeight: "bold", color: "#fff" },
@@ -208,19 +247,28 @@ const styles = StyleSheet.create({
   section: { marginBottom: 30 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 15 },
   sectionTitle: { fontSize: 20, fontWeight: "bold", color: '#333' },
-  mapContainer: { height: 200, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  mapContainer: { height: 250, borderRadius: 20, overflow: 'hidden', position: 'relative' },
   map: { ...StyleSheet.absoluteFillObject },
-  mapOverlayButton: { position: 'absolute', bottom: 10, alignSelf: 'center', backgroundColor: colors.primary, flexDirection: 'row', padding: 12, borderRadius: 12, gap: 8, alignItems: 'center' },
+  mapOverlayButton: { 
+    position: 'absolute', 
+    bottom: 15, 
+    alignSelf: 'center', 
+    backgroundColor: colors.primary, 
+    flexDirection: 'row', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderRadius: 25, 
+    gap: 8, 
+    alignItems: 'center',
+    elevation: 5
+  },
   mapButtonText: { color: '#fff', fontWeight: 'bold' },
-  placeCard: { width: 160, borderRadius: 15, overflow: 'hidden', backgroundColor: '#f8f8f8' },
-  placeImage: { width: '100%', height: 100 },
-  placeContent: { padding: 10 },
-  placeName: { fontSize: 14, fontWeight: 'bold', textAlign: 'center' },
-  hotelCard: { backgroundColor: '#f9f9f9', padding: 15, borderRadius: 15, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: colors.primary },
-  hotelHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  hotelName: { fontSize: 16, fontWeight: 'bold' },
-  priceTag: { fontSize: 14, fontWeight: 'bold' },
-  hotelDescription: { fontSize: 14, color: '#666' },
+  placeCard: { width: 160, height: 120, borderRadius: 15, overflow: 'hidden', marginRight: 12 },
+  placeImage: { width: '100%', height: '100%', position: 'absolute' },
+  placeOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+  placeContent: { flex: 1, justifyContent: 'flex-end', padding: 10 },
+  placeName: { fontSize: 14, fontWeight: 'bold', color: '#fff', textAlign: 'center' },
+  tapToView: { fontSize: 10, color: '#eee', textAlign: 'center', marginTop: 2 },
   infoText: { fontSize: 15, color: '#555', lineHeight: 22 },
   foodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   foodChip: { backgroundColor: '#f0f0f0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
